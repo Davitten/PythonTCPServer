@@ -1,5 +1,23 @@
 import socketserver
+import struct
+
 from protos import addressbook_pb2
+
+
+def _get_msg_range(data: bytes) -> (int, int):
+    """
+
+    :param data: data to collect range from
+    :return: start and end index of data
+    """
+    offset = 4
+    length = struct.unpack_from("!I", data[:offset])[0]
+    return offset, offset + length
+
+
+def _read_single_msg_from_data(data: bytes) -> (int, bytes):
+    msg_start, msg_end = _get_msg_range(data)
+    return msg_end, data[msg_start:msg_end]
 
 
 class TCPHandler(socketserver.StreamRequestHandler):
@@ -9,11 +27,15 @@ class TCPHandler(socketserver.StreamRequestHandler):
         data = self.rfile.read()
         print(f"Received data from host: {self.client_address[0]}:")
         print(data)
-        a = addressbook_pb2.Person()
-        a.ParseFromString(data)
-        print(a)
-        # Likewise, self.wfile is a file-like object used to write back
-        # to the client
+        while data:
+            offset, msg = _read_single_msg_from_data(data)
+            # remove already read messages
+            data = data[offset:]
+            a = addressbook_pb2.Person()
+            a.ParseFromString(msg)
+            print(a)
+            # Likewise, self.wfile is a file-like object used to write back
+            # to the client
         self.wfile.write(data.upper())
 
 
